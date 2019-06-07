@@ -10,8 +10,11 @@ import opengis.wms._
 import opengis._
 import scalaxb._
 
+import cats.implicits._
+
 import java.net.URL
 import scala.xml.{Elem, NodeSeq}
+import geotrellis.vector.ProjectedExtent
 
 /**
   *
@@ -90,6 +93,16 @@ object CapabilitiesView {
     }
   }
 
+  def geographicBoundingBox(nativeCrs: CRS, extent: Extent, cellSize: CellSize): EX_GeographicBoundingBox = {
+    val projectedExtent = ProjectedExtent(extent, nativeCrs).reproject(LatLng).extent
+    EX_GeographicBoundingBox(
+      westBoundLongitude = projectedExtent.xmin,
+      eastBoundLongitude = projectedExtent.xmax,
+      southBoundLatitude = projectedExtent.ymin,
+      northBoundLatitude = projectedExtent.ymax
+    )
+  }
+
   implicit class StyleMethods(val style: OgcStyle) {
     def render(): Style =
       Style(
@@ -155,8 +168,21 @@ object CapabilitiesView {
         val llExtent = llExtents.tail.fold(llExtents.head)(_ combine _)
         Some(EX_GeographicBoundingBox(llExtent.xmin, llExtent.xmax, llExtent.ymin, llExtent.ymax))
       },
-      // TODO: bounding box for global layer
-      BoundingBox = Nil,
+      BoundingBox = model.sources.toList.toNel match {
+        case Some(sources) =>
+          val firstCrs = sources.head.nativeCrs
+          val extents = sources map { ogcSource =>
+            if (ogcSource.nativeCrs == firstCrs) {
+              ogcSource.nativeExtent
+            } else {
+              ogcSource.extentIn(firstCrs.head)
+            }
+          }
+          val combinedExtent = extents.tail.foldLeft(extents.head)(_ combine _)
+          Seq(boundingBox(firstCrs.head, combinedExtent, sources.head.nativeRE.cellSize))
+        case _ =>
+          Nil
+      },
       Dimension = Nil,
       Attribution = None,
       AuthorityURL = Nil,
