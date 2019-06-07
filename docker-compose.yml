@@ -32,6 +32,14 @@ services:
     volumes:
       - $HOME/.aws:/root/.aws
       - ./example/target/scala-2.11/geotrellis-server-example.jar:/opt/geotrellis-server-example.jar
+  ogc-example:
+    image: daunnc/openjdk-gdal:2.3.2
+    command: /bin/sh -c "AWS_PROFILE=azavea-rd java -Djava.library.path=/usr/local/lib -jar /opt/jars/geotrellis-server-ogc-services.jar --public-url localhost:9000"
+    ports:
+      - "9000:9000"
+    volumes:
+      - $HOME/.aws:/root/.aws
+      - ./ogc-example/target/scala-2.11:/opt/jars
   server-microsite:
     image: quay.io/geotrellis/server-microsite:latest
     command: bash -c "cd /root/geotrellis-server/docs/target/site && jekyll serve --host 0.0.0.0"
